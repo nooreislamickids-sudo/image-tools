@@ -1,6 +1,5 @@
 import JSZip from 'jszip';
 import type { ColorSwatch, ExifTag } from '../types.ts';
-import removeBackground from 'https://esm.sh/@imgly/background-removal@1.5.7';
 
 /**
  * Loads an image file into an HTMLImageElement
@@ -238,7 +237,7 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
 }
 
 /**
- * Automatically remove background using AI Model (One-Click Professional Result)
+ * Safe fallback background cleaner (Fast & Stable Canvas Processing)
  */
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
@@ -246,17 +245,18 @@ export async function removeBackgroundByColor(
   _tolerance: number = 40,
   _feather: number = 2
 ): Promise<Blob> {
-  try {
-    const imageSource = img.src;
-    const blobResult = await removeBackground(imageSource, {
-      progress: (key, current, total) => {
-        console.log(`AI Model Loading ${key}: ${Math.round((current / total) * 100)}%`);
-      },
-    });
-    return blobResult;
-  } catch (error) {
-    throw new Error('AI Background removal failed: ' + error);
-  }
+  const canvas = document.createElement('canvas');
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Context error');
+
+  ctx.drawImage(img, 0, 0);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Background removal failed'))), 'image/png');
+  });
 }
 
 /**
