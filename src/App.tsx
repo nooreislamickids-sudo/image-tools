@@ -45,15 +45,15 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-auto border-t border-neutral-900 bg-neutral-950 py-6 text-center text-xs text-neutral-500">
+      <footer className="mt-auto border-t border-neutral-900 bg-neutral-950 py-8 text-center text-xs text-neutral-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2026 Image Tools Studio. Privacy-first, zero-upload client-side processing.</p>
-          <div className="flex items-center gap-4 text-neutral-400">
-            <span>Hardware Accelerated Canvas</span>
+          <p>© 2026 Image Tools (imagetoolshop.shop). Privacy-first, zero-upload client-side processing.</p>
+          <div className="flex items-center gap-6 text-neutral-400 font-medium">
+            <a href="/privacy-policy" className="hover:text-indigo-400 transition-colors">Privacy Policy</a>
             <span>•</span>
-            <span>20+ Pro Utilities</span>
+            <a href="/terms" className="hover:text-indigo-400 transition-colors">Terms & Conditions</a>
             <span>•</span>
-            <span>Client-Side Security</span>
+            <a href="/about" className="hover:text-indigo-400 transition-colors">About Us</a>
           </div>
         </div>
       </footer>
