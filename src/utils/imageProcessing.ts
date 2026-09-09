@@ -242,7 +242,7 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
   _targetHex: string = '#ffffff',
-  tolerance: number = 40,
+  tolerance: number = 45,
   _feather: number = 2
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
