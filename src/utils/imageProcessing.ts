@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import type { ColorSwatch, ExifTag } from '../types.ts';
+import removeBackground from 'https://esm.sh/@imgly/background-removal@1.5.7';
 
 /**
  * Loads an image file into an HTMLImageElement
@@ -237,94 +238,25 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
 }
 
 /**
- * Automatically remove background using Edge-Connected Flood Fill (Only peels outer background)
+ * Automatically remove background using AI Model (One-Click Professional Result)
  */
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
   _targetHex: string = '#ffffff',
-  tolerance: number = 45,
+  _tolerance: number = 40,
   _feather: number = 2
 ): Promise<Blob> {
-  const canvas = document.createElement('canvas');
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Context error');
-
-  ctx.drawImage(img, 0, 0);
-  const imgData = ctx.getImageData(0, 0, w, h);
-  const d = imgData.data;
-
-  const getIdx = (x: number, y: number) => (y * w + x) * 4;
-
-  const corners = [
-    [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]
-  ];
-  let rSum = 0, gSum = 0, bSum = 0;
-  corners.forEach(([x, y]) => {
-    const idx = getIdx(x, y);
-    rSum += d[idx];
-    gSum += d[idx + 1];
-    bSum += d[idx + 2];
-  });
-  const bgR = Math.round(rSum / 4);
-  const bgG = Math.round(gSum / 4);
-  const bgB = Math.round(bSum / 4);
-
-  const tolSq = tolerance * tolerance * 3;
-  const visited = new Uint8Array(w * h);
-  const queue: [number, number][] = [];
-
-  for (let x = 0; x < w; x++) {
-    queue.push([x, 0]);
-    queue.push([x, h - 1]);
-    visited[0 * w + x] = 1;
-    visited[(h - 1) * w + x] = 1;
+  try {
+    const imageSource = img.src;
+    const blobResult = await removeBackground(imageSource, {
+      progress: (key, current, total) => {
+        console.log(`AI Model Loading ${key}: ${Math.round((current / total) * 100)}%`);
+      },
+    });
+    return blobResult;
+  } catch (error) {
+    throw new Error('AI Background removal failed: ' + error);
   }
-  for (let y = 0; y < h; y++) {
-    queue.push([0, y]);
-    queue.push([w - 1, y]);
-    visited[y * w + 0] = 1;
-    visited[y * w + (w - 1)] = 1;
-  }
-
-  let head = 0;
-  while (head < queue.length) {
-    const [x, y] = queue[head++];
-    const idx = getIdx(x, y);
-
-    const r = d[idx];
-    const g = d[idx + 1];
-    const b = d[idx + 2];
-
-    const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
-
-    if (distSq <= tolSq) {
-      d[idx + 3] = 0;
-
-      const neighbors = [
-        [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]
-      ];
-
-      for (const [nx, ny] of neighbors) {
-        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-          const vIdx = ny * w + nx;
-          if (!visited[vIdx]) {
-            visited[vIdx] = 1;
-            queue.push([nx, ny]);
-          }
-        }
-      }
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BG removal failed'))), 'image/png');
-  });
 }
 
 /**
