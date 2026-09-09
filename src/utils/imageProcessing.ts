@@ -50,7 +50,6 @@ export async function compressImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context not available');
 
-  // If converting to JPEG or WebP without transparency, fill white background
   if (format === 'image/jpeg') {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, targetW, targetH);
@@ -170,14 +169,14 @@ export async function cropImage(
  */
 export async function adjustColors(
   img: HTMLImageElement,
-  brightness: number = 100, // 0 - 200 (100 normal)
-  contrast: number = 100,   // 0 - 200 (100 normal)
-  saturation: number = 100, // 0 - 200 (100 normal)
-  hue: number = 0,          // 0 - 360 deg
-  grayscale: number = 0,    // 0 - 100%
-  sepia: number = 0,        // 0 - 100%
-  invert: number = 0,       // 0 - 100%
-  blurPx: number = 0        // 0 - 50 px
+  brightness: number = 100,
+  contrast: number = 100,
+  saturation: number = 100,
+  hue: number = 0,
+  grayscale: number = 0,
+  sepia: number = 0,
+  invert: number = 0,
+  blurPx: number = 0
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
@@ -211,10 +210,6 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
   const src = srcData.data;
   const dst = dstData.data;
 
-  // 3x3 Sharpen Kernel:
-  // [  0, -k,  0 ]
-  // [ -k, 1+4k, -k ]
-  // [  0, -k,  0 ]
   const k = strength;
   const center = 1 + 4 * k;
 
@@ -230,7 +225,7 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
         const val = src[idx + c] * center - (src[top] + src[bottom] + src[left] + src[right]) * k;
         dst[idx + c] = Math.min(255, Math.max(0, val));
       }
-      dst[idx + 3] = src[idx + 3]; // preserve alpha
+      dst[idx + 3] = src[idx + 3];
     }
   }
 
@@ -240,13 +235,14 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Sharpen failed'))), 'image/png');
   });
 }
+
 /**
- * Automatically remove background by detecting and clearing outer edges
+ * Automatically remove background using Edge-Connected Flood Fill (Only peels outer background)
  */
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
   _targetHex: string = '#ffffff',
-  _tolerance: number = 40,
+  tolerance: number = 40,
   _feather: number = 2
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
@@ -261,102 +257,66 @@ export async function removeBackgroundByColor(
   const imgData = ctx.getImageData(0, 0, w, h);
   const d = imgData.data;
 
-  // Sample corner colors to automatically detect background color
-  const sampleCorners = [
-    0, // top-left
-    (w - 1) * 4, // top-right
-    ((h - 1) * w) * 4, // bottom-left
-    ((h - 1) * w + w - 1) * 4 // bottom-right
+  const getIdx = (x: number, y: number) => (y * w + x) * 4;
+
+  const corners = [
+    [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]
   ];
-
-  let rT = 255, gT = 255, bT = 255;
-  let validCount = 0;
-  sampleCorners.forEach(idx => {
-    if (idx >= 0 && idx < d.length) {
-      rT += d[idx];
-      gT += d[idx + 1];
-      bT += d[idx + 2];
-      validCount++;
-    }
+  let rSum = 0, gSum = 0, bSum = 0;
+  corners.forEach(([x, y]) => {
+    const idx = getIdx(x, y);
+    rSum += d[idx];
+    gSum += d[idx + 1];
+    bSum += d[idx + 2];
   });
-  rT = Math.round(rT / (validCount || 1));
-  gT = Math.round(gT / (validCount || 1));
-  bT = Math.round(bT / (validCount || 1));
-
-  const threshold = 45; // Auto-threshold for background matching
-  const tolSq = threshold * threshold * 3;
-
-  // Flood fill / scan from edges to remove surrounding background automatically
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i];
-    const g = d[i + 1];
-    const b = d[i + 2];
-
-    const distSq = (r - rT) ** 2 + (g - gT) ** 2 + (b - bT) ** 2;
-
-    if (distSq <= tolSq) {
-      d[i + 3] = 0; // Make transparent
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BG removal failed'))), 'image/png');
-  });
-}
-
-  // Convert hex to rgb
-  const rT = parseInt(targetHex.slice(1, 3), 16);
-  const gT = parseInt(targetHex.slice(3, 5), 16);
-  const bT = parseInt(targetHex.slice(5, 7), 16);
+  const bgR = Math.round(rSum / 4);
+  const bgG = Math.round(gSum / 4);
+  const bgB = Math.round(bSum / 4);
 
   const tolSq = tolerance * tolerance * 3;
-  const featherSq = (tolerance + feather * 15) * (tolerance + feather * 15) * 3;
+  const visited = new Uint8Array(w * h);
+  const queue: [number, number][] = [];
 
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i];
-    const g = d[i + 1];
-    const b = d[i + 2];
-
-    const distSq = (r - rT) ** 2 + (g - gT) ** 2 + (b - bT) ** 2;
-
-    if (distSq <= tolSq) {
-      d[i + 3] = 0; // Transparent
-    } else if (distSq < featherSq && feather > 0) {
-      const factor = (Math.sqrt(distSq) - Math.sqrt(tolSq)) / (Math.sqrt(featherSq) - Math.sqrt(tolSq));
-      d[i + 3] = Math.round(d[i + 3] * Math.min(1, Math.max(0, factor)));
-    }
+  for (let x = 0; x < w; x++) {
+    queue.push([x, 0]);
+    queue.push([x, h - 1]);
+    visited[0 * w + x] = 1;
+    visited[(h - 1) * w + x] = 1;
+  }
+  for (let y = 0; y < h; y++) {
+    queue.push([0, y]);
+    queue.push([w - 1, y]);
+    visited[y * w + 0] = 1;
+    visited[y * w + (w - 1)] = 1;
   }
 
-  ctx.putImageData(imgData, 0, 0);
+  let head = 0;
+  while (head < queue.length) {
+    const [x, y] = queue[head++];
+    const idx = getIdx(x, y);
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BG removal failed'))), 'image/png');
-  });
-}
+    const r = d[idx];
+    const g = d[idx + 1];
+    const b = d[idx + 2];
 
-  // Convert hex to rgb
-  const rT = parseInt(targetHex.slice(1, 3), 16);
-  const gT = parseInt(targetHex.slice(3, 5), 16);
-  const bT = parseInt(targetHex.slice(5, 7), 16);
-
-  const tolSq = tolerance * tolerance * 3;
-  const featherSq = (tolerance + feather * 10) * (tolerance + feather * 10) * 3;
-
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i];
-    const g = d[i + 1];
-    const b = d[i + 2];
-
-    const distSq = (r - rT) ** 2 + (g - gT) ** 2 + (b - bT) ** 2;
+    const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
 
     if (distSq <= tolSq) {
-      d[i + 3] = 0; // Transparent
-    } else if (distSq < featherSq && feather > 0) {
-      // Smooth feathering
-      const factor = (Math.sqrt(distSq) - tolerance) / (feather * 10);
-      d[i + 3] = Math.round(d[i + 3] * Math.min(1, Math.max(0, factor)));
+      d[idx + 3] = 0;
+
+      const neighbors = [
+        [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]
+      ];
+
+      for (const [nx, ny] of neighbors) {
+        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+          const vIdx = ny * w + nx;
+          if (!visited[vIdx]) {
+            visited[vIdx] = 1;
+            queue.push([nx, ny]);
+          }
+        }
+      }
     }
   }
 
@@ -451,7 +411,6 @@ export async function generateMeme(
   ctx.lineWidth = Math.max(2, Math.round(fontSize / 8));
   ctx.lineJoin = 'round';
 
-  // Draw Top Text
   if (topText.trim()) {
     ctx.textBaseline = 'top';
     const lines = topText.toUpperCase().split('\n');
@@ -462,7 +421,6 @@ export async function generateMeme(
     });
   }
 
-  // Draw Bottom Text
   if (bottomText.trim()) {
     ctx.textBaseline = 'bottom';
     const lines = bottomText.toUpperCase().split('\n');
@@ -517,7 +475,6 @@ export async function splitImageToTiles(
  */
 export function extractColorPalette(img: HTMLImageElement, maxColors: number = 8): ColorSwatch[] {
   const canvas = document.createElement('canvas');
-  // Scale down for fast analysis
   const size = 150;
   canvas.width = size;
   canvas.height = size;
@@ -530,8 +487,7 @@ export function extractColorPalette(img: HTMLImageElement, maxColors: number = 8
 
   for (let i = 0; i < data.length; i += 16) {
     const alpha = data[i + 3];
-    if (alpha < 128) continue; // Skip transparent
-    // Quantize to 16 levels
+    if (alpha < 128) continue;
     const r = Math.round(data[i] / 16) * 16;
     const g = Math.round(data[i + 1] / 16) * 16;
     const b = Math.round(data[i + 2] / 16) * 16;
@@ -552,7 +508,6 @@ export function extractColorPalette(img: HTMLImageElement, maxColors: number = 8
   return sorted.map((item) => {
     const hex = `#${item.r.toString(16).padStart(2, '0')}${item.g.toString(16).padStart(2, '0')}${item.b.toString(16).padStart(2, '0')}`;
     const rgb = `rgb(${item.r}, ${item.g}, ${item.b})`;
-    // HSL
     const r = item.r / 255;
     const g = item.g / 255;
     const b = item.b / 255;
@@ -594,14 +549,12 @@ export async function parseImageMetadata(file: File, img: HTMLImageElement): Pro
   try {
     const buffer = await file.slice(0, 128 * 1024).arrayBuffer();
     const view = new DataView(buffer);
-    // Check for JPEG SOI marker (0xFFD8)
     if (view.getUint16(0, false) === 0xffd8) {
       let offset = 2;
       while (offset < view.byteLength - 2) {
         const marker = view.getUint16(offset, false);
         offset += 2;
         if (marker === 0xffe1) {
-          // APP1 EXIF marker
           const length = view.getUint16(offset, false);
           offset += 2;
           const exifHeader = String.fromCharCode(
@@ -624,7 +577,7 @@ export async function parseImageMetadata(file: File, img: HTMLImageElement): Pro
       }
     }
   } catch {
-    // Non-fatal if EXIF scan fails
+    // Non-fatal
   }
 
   return tags;
@@ -655,8 +608,6 @@ export function generateQrCanvas(
   fgColor: string = '#000000',
   bgColor: string = '#ffffff'
 ): string {
-  // Generate high-resolution SVG or Canvas for QR Code
-  // Using native Canvas QR matrix algorithm
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -666,12 +617,10 @@ export function generateQrCanvas(
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, size, size);
 
-  // Draw decorative QR pattern with functional corners
   const modules = 29;
   const cellSize = Math.floor(size / modules);
   const margin = Math.floor((size - modules * cellSize) / 2);
 
-  // Deterministic pseudo-random seed from string
   let seed = 0;
   for (let i = 0; i < text.length; i++) {
     seed = (seed * 31 + text.charCodeAt(i)) >>> 0;
@@ -683,7 +632,6 @@ export function generateQrCanvas(
 
   ctx.fillStyle = fgColor;
 
-  // Draw 3 Position Detection Patterns (Corners)
   const drawCorner = (startX: number, startY: number) => {
     for (let r = 0; r < 7; r++) {
       for (let c = 0; c < 7; c++) {
@@ -700,7 +648,6 @@ export function generateQrCanvas(
   drawCorner(modules - 7, 0);
   drawCorner(0, modules - 7);
 
-  // Fill data matrix
   for (let r = 0; r < modules; r++) {
     for (let c = 0; c < modules; c++) {
       const inTopLeft = r < 8 && c < 8;
@@ -766,7 +713,6 @@ export async function createCollage(
       ctx.clip();
     }
 
-    // Cover fit
     const imgRatio = img.naturalWidth / img.naturalHeight;
     const slotRatio = slotW / slotH;
     let sW = img.naturalWidth;
