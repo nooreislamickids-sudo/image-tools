@@ -240,15 +240,14 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Sharpen failed'))), 'image/png');
   });
 }
-
 /**
- * Remove background based on key color & tolerance with enhanced feathering
+ * Automatically remove background by detecting and clearing outer edges
  */
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
-  targetHex: string,
-  tolerance: number = 40,
-  feather: number = 2
+  _targetHex: string = '#ffffff',
+  _tolerance: number = 40,
+  _feather: number = 2
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
   const w = img.naturalWidth;
@@ -261,6 +260,51 @@ export async function removeBackgroundByColor(
   ctx.drawImage(img, 0, 0);
   const imgData = ctx.getImageData(0, 0, w, h);
   const d = imgData.data;
+
+  // Sample corner colors to automatically detect background color
+  const sampleCorners = [
+    0, // top-left
+    (w - 1) * 4, // top-right
+    ((h - 1) * w) * 4, // bottom-left
+    ((h - 1) * w + w - 1) * 4 // bottom-right
+  ];
+
+  let rT = 255, gT = 255, bT = 255;
+  let validCount = 0;
+  sampleCorners.forEach(idx => {
+    if (idx >= 0 && idx < d.length) {
+      rT += d[idx];
+      gT += d[idx + 1];
+      bT += d[idx + 2];
+      validCount++;
+    }
+  });
+  rT = Math.round(rT / (validCount || 1));
+  gT = Math.round(gT / (validCount || 1));
+  bT = Math.round(bT / (validCount || 1));
+
+  const threshold = 45; // Auto-threshold for background matching
+  const tolSq = threshold * threshold * 3;
+
+  // Flood fill / scan from edges to remove surrounding background automatically
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i];
+    const g = d[i + 1];
+    const b = d[i + 2];
+
+    const distSq = (r - rT) ** 2 + (g - gT) ** 2 + (b - bT) ** 2;
+
+    if (distSq <= tolSq) {
+      d[i + 3] = 0; // Make transparent
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BG removal failed'))), 'image/png');
+  });
+}
 
   // Convert hex to rgb
   const rT = parseInt(targetHex.slice(1, 3), 16);
