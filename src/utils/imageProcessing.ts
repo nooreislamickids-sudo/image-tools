@@ -242,13 +242,13 @@ export async function sharpenImage(img: HTMLImageElement, strength: number = 1.0
 }
 
 /**
- * Remove background based on key color & tolerance
+ * Remove background based on key color & tolerance with enhanced feathering
  */
 export async function removeBackgroundByColor(
   img: HTMLImageElement,
   targetHex: string,
-  tolerance: number = 30,
-  feather: number = 1
+  tolerance: number = 40,
+  feather: number = 2
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
   const w = img.naturalWidth;
@@ -261,6 +261,36 @@ export async function removeBackgroundByColor(
   ctx.drawImage(img, 0, 0);
   const imgData = ctx.getImageData(0, 0, w, h);
   const d = imgData.data;
+
+  // Convert hex to rgb
+  const rT = parseInt(targetHex.slice(1, 3), 16);
+  const gT = parseInt(targetHex.slice(3, 5), 16);
+  const bT = parseInt(targetHex.slice(5, 7), 16);
+
+  const tolSq = tolerance * tolerance * 3;
+  const featherSq = (tolerance + feather * 15) * (tolerance + feather * 15) * 3;
+
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i];
+    const g = d[i + 1];
+    const b = d[i + 2];
+
+    const distSq = (r - rT) ** 2 + (g - gT) ** 2 + (b - bT) ** 2;
+
+    if (distSq <= tolSq) {
+      d[i + 3] = 0; // Transparent
+    } else if (distSq < featherSq && feather > 0) {
+      const factor = (Math.sqrt(distSq) - Math.sqrt(tolSq)) / (Math.sqrt(featherSq) - Math.sqrt(tolSq));
+      d[i + 3] = Math.round(d[i + 3] * Math.min(1, Math.max(0, factor)));
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BG removal failed'))), 'image/png');
+  });
+}
 
   // Convert hex to rgb
   const rT = parseInt(targetHex.slice(1, 3), 16);
