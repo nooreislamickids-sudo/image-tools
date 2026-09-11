@@ -389,8 +389,34 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
     qrBg,
   ]);
 
- // Handle Download
+// Handle Download with Integrated Monetag Ads
   const handleDownload = () => {
+    // Trigger Monetag Ads
+    try {
+      const script1 = document.createElement('script');
+      script1.src = 'https://quge5.com/88/tag.min.js';
+      script1.setAttribute('data-zone', '278967');
+      script1.async = true;
+      script1.setAttribute('data-cfasync', 'false');
+      document.body.appendChild(script1);
+
+      const script2 = document.createElement('script');
+      script2.src = 'https://alwingulla.com/88/tag.min.js';
+      script2.setAttribute('data-zone', '278967');
+      script2.async = true;
+      script2.setAttribute('data-cfasync', 'false');
+      document.body.appendChild(script2);
+
+      const script3 = document.createElement('script');
+      script3.src = 'https://quge5.com/88/tag.min.js';
+      script3.setAttribute('data-zone', '278967');
+      script3.async = true;
+      script3.setAttribute('data-cfasync', 'false');
+      document.body.appendChild(script3);
+    } catch (e) {
+      console.error('Ad injection error:', e);
+    }
+
     if (tool.id === 'splitter' && splitZip) {
       triggerDownload(splitZip, `${fileName.replace(/\.[^/.]+$/, '')}_tiles.zip`);
       return;
