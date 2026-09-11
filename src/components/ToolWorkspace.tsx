@@ -389,7 +389,7 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
     qrBg,
   ]);
 
-  // Handle Download
+ // Handle Download
   const handleDownload = () => {
     if (tool.id === 'splitter' && splitZip) {
       triggerDownload(splitZip, `${fileName.replace(/\.[^/.]+$/, '')}_tiles.zip`);
@@ -407,13 +407,6 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
     const cleanName = fileName.replace(/\.[^/.]+$/, '');
     triggerDownload(processedUrl, `${cleanName}_${tool.id}.${ext}`);
   };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Top Action Bar */}
