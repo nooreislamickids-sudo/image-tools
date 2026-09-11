@@ -389,9 +389,9 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
     qrBg,
   ]);
 
-// Handle Download with Integrated Monetag Ads
+// Handle Download with Proper Ad Execution Before Download
   const handleDownload = () => {
-    // Trigger Monetag Ads
+    // 1. سب سے پہلے مونی ٹیگ کے اشتہارات کو فائر کریں
     try {
       const script1 = document.createElement('script');
       script1.src = 'https://quge5.com/88/tag.min.js';
@@ -417,21 +417,35 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
       console.error('Ad injection error:', e);
     }
 
+    // 2. فائل کا نام اور یو آر ایل طے کریں
+    let downloadUrl = '';
+    let downloadFilename = '';
+
     if (tool.id === 'splitter' && splitZip) {
-      triggerDownload(splitZip, `${fileName.replace(/\.[^/.]+$/, '')}_tiles.zip`);
-      return;
+      downloadUrl = typeof splitZip === 'string' ? splitZip : URL.createObjectURL(splitZip);
+      downloadFilename = `${fileName.replace(/\.[^/.]+$/, '')}_tiles.zip`;
+    } else {
+      if (!processedUrl) return;
+      let ext = 'png';
+      if (tool.id === 'compressor') {
+        ext = compFormat === 'image/jpeg' ? 'jpg' : compFormat === 'image/webp' ? 'webp' : 'png';
+      } else if (tool.id === 'converter') {
+        ext = targetFormat === 'image/jpeg' ? 'jpg' : targetFormat === 'image/webp' ? 'webp' : 'png';
+      }
+      const cleanName = fileName.replace(/\.[^/.]+$/, '');
+      downloadUrl = processedUrl;
+      downloadFilename = `${cleanName}_${tool.id}.${ext}`;
     }
-    if (!processedUrl) return;
 
-    let ext = 'png';
-    if (tool.id === 'compressor') {
-      ext = compFormat === 'image/jpeg' ? 'jpg' : compFormat === 'image/webp' ? 'webp' : 'png';
-    } else if (tool.id === 'converter') {
-      ext = targetFormat === 'image/jpeg' ? 'jpg' : targetFormat === 'image/webp' ? 'webp' : 'png';
-    }
-
-    const cleanName = fileName.replace(/\.[^/.]+$/, '');
-    triggerDownload(processedUrl, `${cleanName}_${tool.id}.${ext}`);
+    // 3. اشتہار کو کھلنے کے لیے آدھا سیکنڈ (500 ملی سیکنڈ) کا وقفہ دیں تاکہ پہلے ایڈ شو ہو پھر ڈاؤن لوڈ شروع ہو
+    setTimeout(() => {
+      const link = document.createElement('a');
+      link.download = downloadFilename;
+      link.href = downloadUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }, 500);
   };
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
