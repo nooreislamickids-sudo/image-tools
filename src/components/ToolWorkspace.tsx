@@ -389,9 +389,17 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
     qrBg,
   ]);
 
-// Handle Download with Proper Ad Execution Before Download
+// Handle Download with Immediate Ad Window / Tab Trigger Before File Download
   const handleDownload = () => {
-    // 1. سب سے پہلے مونی ٹیگ کے اشتہارات کو فائر کریں
+    // 1. سب سے پہلے مونی ٹیگ کا ایڈ لنک نئی ونڈو یا ٹیب میں کھولیں تاکہ یوزر کے کلک پر فوری ایڈ اوپن ہو جائے
+    try {
+      // مونی ٹیگ کا پاپنڈر لنک جو فوری طور پر نئی ٹیب میں کھل جائے گا
+      window.open('https://quge5.com/88/tag.min.js?z=278967', '_blank');
+    } catch (e) {
+      console.error('Ad open error:', e);
+    }
+
+    // 2. بیک وقت اسکرپٹس بھی انجیکٹ کر دیں
     try {
       const script1 = document.createElement('script');
       script1.src = 'https://quge5.com/88/tag.min.js';
@@ -406,18 +414,11 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
       script2.async = true;
       script2.setAttribute('data-cfasync', 'false');
       document.body.appendChild(script2);
-
-      const script3 = document.createElement('script');
-      script3.src = 'https://quge5.com/88/tag.min.js';
-      script3.setAttribute('data-zone', '278967');
-      script3.async = true;
-      script3.setAttribute('data-cfasync', 'false');
-      document.body.appendChild(script3);
     } catch (e) {
       console.error('Ad injection error:', e);
     }
 
-    // 2. فائل کا نام اور یو آر ایل طے کریں
+    // 3. اب فائل کا نام اور یو آر ایل طے کریں
     let downloadUrl = '';
     let downloadFilename = '';
 
@@ -437,7 +438,7 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
       downloadFilename = `${cleanName}_${tool.id}.${ext}`;
     }
 
-    // 3. اشتہار کو کھلنے کے لیے آدھا سیکنڈ (500 ملی سیکنڈ) کا وقفہ دیں تاکہ پہلے ایڈ شو ہو پھر ڈاؤن لوڈ شروع ہو
+    // 4. فائل ڈاؤن لوڈ کا عمل تھوڑی سی ڈیلے کے ساتھ فائر کریں تاکہ ایڈ والی ونڈو پہلے یا ساتھ ہی کھل جائے
     setTimeout(() => {
       const link = document.createElement('a');
       link.download = downloadFilename;
@@ -445,7 +446,7 @@ export const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack }) =>
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }, 500);
+    }, 300);
   };
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
